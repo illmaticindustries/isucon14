@@ -250,7 +250,7 @@ SELECT
     ds.total_distance_updated_at
 FROM chairs c
 LEFT JOIN distance_summary ds ON ds.chair_id = c.id
-WHERE c.owner_id = '?'`
+WHERE c.owner_id = ?`
 	if err := db.SelectContext(ctx, &chairs, query, owner.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
