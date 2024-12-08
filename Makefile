@@ -21,13 +21,13 @@ restart:
 	ssh isu14-1 "sudo systemctl restart isuride-go.service"
 
 mysql-deploy:
-	ssh isu14-1 "sudo dd of=/etc/mysql/mysql.conf.d/mysqld.cnf" < ./etc/mysql/mysql.conf.d/mysqld.cnf
+	ssh isu14-2 "sudo dd of=/etc/mysql/mysql.conf.d/mysqld.cnf" < ./etc/mysql/mysql.conf.d/mysqld.cnf
 
 mysql-rotate:
-	ssh isu14-1 "sudo rm -f /var/log/mysql/mysql-slow.log"
+	ssh isu14-2 "sudo rm -f /var/log/mysql/mysql-slow.log"
 
 mysql-restart:
-	ssh isu14-1 "sudo systemctl restart mysql.service"
+	ssh isu14-2 "sudo systemctl restart mysql.service"
 
 nginx-deploy:
 	ssh isu14-1 "sudo dd of=/etc/nginx/nginx.conf" < ./etc/nginx/nginx.conf
@@ -42,6 +42,9 @@ nginx-reload:
 nginx-restart:
 	ssh isu14-1 "sudo systemctl restart nginx.service"
 
+daemon-reload-2:
+	ssh isu14-2 "sudo systemctl daemon-reload"
+
 env-deploy:
 	ssh isu14-1 "sudo dd of=/home/isucon/env.sh" < ./env.sh
 
@@ -51,8 +54,11 @@ bench:
 		cd /home/isucon/bench; \
 		./bench -target-addr 172.31.41.209:443"
 
-journalctl:
+journalctl-1:
 	ssh isu14-1 "sudo journalctl -xef"
+
+journalctl-2:
+	ssh isu14-2 "sudo journalctl -xef"
 
 nginx-log:
 	ssh isu14-1 "sudo tail -f /var/log/nginx/access.log"
