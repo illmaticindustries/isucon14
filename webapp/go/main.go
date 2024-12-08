@@ -24,6 +24,174 @@ import (
 var db *sqlx.DB
 var memcachedClient *memcache.Client
 
+
+type Chair_ struct {
+	ID    string  `json:"id"`
+	Name  string  `json:"name"`
+	Model string  `json:"model"`
+	Stats Stats_   `json:"stats"`
+}
+
+type Stats_ struct {
+	TotalRidesCount    int     `json:"total_rides_count"`
+	TotalEvaluationAvg float64 `json:"total_evaluation_avg"`
+}
+
+type User_ struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+	
+
+// 通知データ構造
+type UserNotification struct {
+	RideID               string     `json:"ride_id"`
+	PickupCoordinate     Coordinate `json:"pickup_coordinate"`
+	DestinationCoordinate Coordinate `json:"destination_coordinate"`
+	Fare                 int        `json:"fare"`
+	Status               string     `json:"status"`
+	C                    Chair_      `json:"chair"`
+	CreatedAt            int64      `json:"created_at"`
+	UpdatedAt            int64      `json:"updated_at"`
+}
+
+type ChairNotification struct {
+	RideID               string     `json:"ride_id"`
+	User                 User_       `json:"user"`
+	PickupCoordinate     Coordinate `json:"pickup_coordinate"`
+	DestinationCoordinate Coordinate `json:"destination_coordinate"`
+	Status               string     `json:"status"`
+}
+
+
+
+
+// SSEクライアント管理
+type SSEManager struct {
+	clients map[chan interface{}]struct{}
+	add     chan chan interface{}
+	remove  chan chan interface{}
+}
+
+// SSEManagerの作成
+func NewSSEManager() *SSEManager {
+	manager := &SSEManager{
+		clients: make(map[chan interface{}]struct{}),
+		add:     make(chan chan interface{}),
+		remove:  make(chan chan interface{}),
+	}
+	go manager.run()
+	return manager
+}
+
+// クライアント管理ループ
+func (m *SSEManager) run() {
+	for {
+		select {
+		case client := <-m.add:
+			m.clients[client] = struct{}{}
+		case client := <-m.remove:
+			delete(m.clients, client)
+			close(client)
+		}
+	}
+}
+
+// クライアント追加
+func (m *SSEManager) AddClient(client chan interface{}) {
+	m.add <- client
+}
+
+// クライアント削除
+func (m *SSEManager) RemoveClient(client chan interface{}) {
+	m.remove <- client
+}
+
+// 通知送信
+func (m *SSEManager) Notify(data interface{}) {
+	for client := range m.clients {
+		select {
+		case client <- data:
+		default:
+			delete(m.clients, client)
+			close(client)
+		}
+	}
+}
+
+// グローバルなSSEManagerインスタンス
+var userNotificationManager = NewSSEManager()
+var chairNotificationManager = NewSSEManager()
+
+// SSE通知ハンドラー
+func SSEHandler(manager *SSEManager) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("Connection", "keep-alive")
+
+		client := make(chan interface{}, 10)
+		manager.AddClient(client)
+		defer manager.RemoveClient(client)
+
+		// クライアントに通知を送信
+		for data := range client {
+			jsonData, _ := json.Marshal(data)
+			fmt.Fprintf(w, "data: %s\n\n", string(jsonData))
+			flusher, ok := w.(http.Flusher)
+			if ok {
+				flusher.Flush()
+			}
+		}
+	}
+}
+
+// ダミーデータ提供関数
+func getUserNotificationData() interface{} {
+	return UserNotification{
+		RideID: "01JEG4X2TZSE169T99XERS990M",
+		PickupCoordinate: Coordinate{
+			Latitude:  0,
+			Longitude: 0,
+		},
+		DestinationCoordinate: Coordinate{
+			Latitude:  20,
+			Longitude: 20,
+		},
+		Fare:    1500,
+		Status:  "ENROUTE",
+		C:   Chair_{ID: "01JDFEF7MGXXCJKW1MNJXPA77A", Name: "QC-L13-8361", Model: "クエストチェア Lite", Stats: Stats_{TotalRidesCount: 1, TotalEvaluationAvg: 5}},
+		CreatedAt: 1733561322336,
+		UpdatedAt: 1733561322690,
+	}
+}
+
+func getChairNotificationData() interface{} {
+	return ChairNotification{
+		RideID: "01JEG4X2TZSE169T99XERS990M",
+		User:   User_{ID: "01JEG4W4E1QF0ZA1YY4BYGA1M5", Name: "CON ISU"},
+		PickupCoordinate: Coordinate{
+			Latitude:  0,
+			Longitude: 0,
+		},
+		DestinationCoordinate: Coordinate{
+			Latitude:  20,
+			Longitude: 20,
+		},
+		Status: "MATCHING",
+	}
+}
+
+// ダミーエンドポイント
+func dummy_push() {
+	// ダミーデータを作成
+	data := getUserNotificationData()
+
+	// SSEに通知
+	userNotificationManager.Notify(data)
+}
+
+
 func main() {
 	memcachedClient = memcache.New("127.0.0.1:11211") // Memcachedサーバーのアドレス
 
@@ -103,7 +271,8 @@ func setup() http.Handler {
 		authedMux.HandleFunc("POST /api/app/rides", appPostRides)
 		authedMux.HandleFunc("POST /api/app/rides/estimated-fare", appPostRidesEstimatedFare)
 		authedMux.HandleFunc("POST /api/app/rides/{ride_id}/evaluation", appPostRideEvaluatation)
-		authedMux.HandleFunc("GET /api/app/notification", appGetNotification)
+		//authedMux.HandleFunc("GET /api/app/notification", appGetNotification)
+		authedMux.HandleFunc("/api/app/notification", SSEHandler(userNotificationManager))
 		authedMux.HandleFunc("GET /api/app/nearby-chairs", appGetNearbyChairs)
 	}
 
