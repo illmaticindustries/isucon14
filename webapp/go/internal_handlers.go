@@ -58,7 +58,7 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 	// 1. 最も待たせているライドを取得
 	ride := &Ride{}
 	err := db.GetContext(ctx, ride, `
-		SELECT id, created_at
+		SELECT id, user_id, pickup_latitude, pickup_longitude, destination_latitude, destination_longitude
 		FROM rides
 		WHERE chair_id IS NULL
 		ORDER BY created_at
@@ -79,11 +79,11 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 		SELECT c.id, c.name, c.model
 		FROM chairs AS c
 		LEFT JOIN (
-			SELECT chair_id
-			FROM rides
-			WHERE chair_id IS NOT NULL
-			GROUP BY chair_id
-			HAVING COUNT(CASE WHEN chair_sent_at IS NULL THEN 1 END) > 0
+			SELECT r.chair_id
+			FROM rides AS r
+			JOIN ride_statuses AS rs ON r.id = rs.ride_id
+			WHERE rs.chair_sent_at IS NULL
+			GROUP BY r.chair_id
 		) AS active_rides
 		ON c.id = active_rides.chair_id
 		WHERE active_rides.chair_id IS NULL AND c.is_active = TRUE
