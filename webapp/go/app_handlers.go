@@ -570,6 +570,16 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
+	// 空椅子を登録
+	_, err = tx.ExecContext(
+		ctx,
+		`INSERT INTO vacant_chairs (chair_id) VALUES (?)`,
+		ride.ChairID,
+	)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
 
 	if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE id = ?`, rideID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {

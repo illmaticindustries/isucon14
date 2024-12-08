@@ -136,6 +136,13 @@ CREATE TABLE coupons
   COMMENT 'クーポンテーブル';
 
 
+DROP TABLE IF EXISTS vacant_chairs;
+CREATE TABLE vacant_chairs 
+(
+  chair_id           VARCHAR(26)  NOT NULL COMMENT '椅子ID',
+  PRIMARY KEY (chair_id)
+)
+  COMMENT = '空き椅子情報テーブル';
 
 
 CREATE INDEX idx_owner_id ON chairs(owner_id);
