@@ -76,19 +76,19 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 	// 2. 空いている椅子を取得
 	chair := &Chair{}
 	err = db.GetContext(ctx, chair, `
-		SELECT c.id, c.name, c.model
-		FROM chairs AS c
-		LEFT JOIN (
-			SELECT r.chair_id
-			FROM rides AS r
-			JOIN ride_statuses AS rs ON r.id = rs.ride_id
-			WHERE rs.chair_sent_at IS NULL
-			GROUP BY r.chair_id
-		    HAVING COUNT(rs.chair_sent_at) = 6
-		) AS active_rides
-		ON c.id = active_rides.chair_id
-		WHERE active_rides.chair_id IS NULL AND c.is_active = TRUE
-		LIMIT 1
+	SELECT c.id, c.name, c.model
+	FROM chairs AS c
+	LEFT JOIN (
+	    SELECT r.chair_id
+	    FROM rides AS r
+	    JOIN ride_statuses AS rs ON r.id = rs.ride_id
+	    WHERE rs.chair_sent_at IS NOT NULL
+	    GROUP BY r.chair_id
+	    HAVING COUNT(rs.chair_sent_at) = 6
+	) AS active_rides
+	ON c.id = active_rides.chair_id
+	WHERE active_rides.chair_id IS NULL AND c.is_active = TRUE
+	LIMIT 1
 	`)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
