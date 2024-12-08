@@ -3,6 +3,7 @@ package main
 import (
 	"database/sql"
 	"errors"
+	"log/slog"
 	"net/http"
 )
 
@@ -14,6 +15,7 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 	if err := db.GetContext(ctx, ride, `
 	SELECT * FROM rides WHERE chair_id IS NULL ORDER BY created_at LIMIT 1`); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
+			slog.Error("no rows1")
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
@@ -62,7 +64,12 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 	var vacant_chair struct {
 		ID string `db:"chair_id"`
 	}
-	if err := tx.SelectContext(ctx, &vacant_chair, "SELECT chair_id FROM vacant_chairs LIMIT 1 FOR UPDATE"); err != nil {
+	if err := tx.GetContext(ctx, &vacant_chair, "SELECT chair_id FROM vacant_chairs LIMIT 1 FOR UPDATE"); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			slog.Error("no rows2")
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
