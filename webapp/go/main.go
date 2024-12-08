@@ -6,7 +6,6 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
-	"net/http/pprof"
 	"os"
 	"os/exec"
 	"strconv"
@@ -27,16 +26,16 @@ var memcachedClient *memcache.Client
 func main() {
 	memcachedClient = memcache.New("127.0.0.1:11211") // Memcachedサーバーのアドレス
 
-	r := chi.NewRouter()
-	r.HandleFunc("/debug/pprof/", pprof.Index)
-	r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	r.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	r.HandleFunc("/debug/pprof/trace", pprof.Trace)
-	// サーバー起動
-	go func() {
-		http.ListenAndServe(":6061", r)
-	}()
+	// r := chi.NewRouter()
+	// r.HandleFunc("/debug/pprof/", pprof.Index)
+	// r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	// r.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	// r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	// r.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	// // サーバー起動
+	// go func() {
+	// 	http.ListenAndServe(":6061", r)
+	// }()
 
 	mux := setup()
 	slog.Info("Listening on :8080")
