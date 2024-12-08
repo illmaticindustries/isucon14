@@ -64,7 +64,7 @@ nginx-log:
 	ssh isu14-1 "sudo tail -f /var/log/nginx/access.log"
 
 pt-query-digest:
-	ssh isu14-1 "sudo pt-query-digest --limit 10 /var/log/mysql/mysql-slow.log"
+	ssh isu14-2 "sudo pt-query-digest --limit 10 /var/log/mysql/mysql-slow.log"
 
 ALPSORT=sum
 # ^/api/app/nearby-chairs\?
@@ -80,7 +80,7 @@ alp:
 .PHONY: pprof
 pprof:
 	ssh isu14-1 " \
-		/home/isucon/local/golang/bin/go tool pprof -seconds=120 /home/isucon/webapp/go/isuride http://0.0.0.0:6061/debug/pprof/profile"
+		/home/isucon/local/golang/bin/go tool pprof -seconds=90 /home/isucon/webapp/go/isuride http://0.0.0.0:6061/debug/pprof/profile"
 
 pprof-show:
 	$(eval latest := $(shell ssh isu14-1 "ls -rt ~/pprof/ | tail -n 1"))
