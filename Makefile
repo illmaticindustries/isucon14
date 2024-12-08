@@ -12,13 +12,13 @@ build:
 		/home/isucon/local/golang/bin/go build -o isuride"
 
 go-deploy:
-	scp ./webapp/go/isupipe isu14-1:/home/isucon/webapp/go/
+	scp ./webapp/go/isuride isu14-1:/home/isucon/webapp/go/
 
 go-deploy-dir:
 	scp -r ./webapp/go isu14-1:/home/isucon/webapp/
 
 restart:
-	ssh isu14-1 "sudo systemctl restart isupipe-go.service"
+	ssh isu14-1 "sudo systemctl restart isuride-go.service"
 
 mysql-deploy:
 	ssh isu14-1 "sudo dd of=/etc/mysql/mysql.conf.d/mysqld.cnf" < ./etc/mysql/mysql.conf.d/mysqld.cnf
@@ -31,7 +31,7 @@ mysql-restart:
 
 nginx-deploy:
 	ssh isu14-1 "sudo dd of=/etc/nginx/nginx.conf" < ./etc/nginx/nginx.conf
-	ssh isu14-1 "sudo dd of=/etc/nginx/sites-enabled/isupipe.conf" < ./etc/nginx/sites-enabled/isupipe.conf
+	ssh isu14-1 "sudo dd of=/etc/nginx/sites-enabled/isuride.conf" < ./etc/nginx/sites-enabled/isuride.conf
 
 nginx-rotate:
 	ssh isu14-1 "sudo rm -f /var/log/nginx/access.log"
