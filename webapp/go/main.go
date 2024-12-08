@@ -25,7 +25,7 @@ func main() {
 	http.ListenAndServe(":8080", mux)
 	go func() {
 		log.Println(http.ListenAndServe(":6060", nil))
-	}
+	}()
 }
 
 func setup() http.Handler {
