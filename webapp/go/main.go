@@ -22,6 +22,15 @@ import (
 var db *sqlx.DB
 
 func main() {
+
+	r := chi.NewRouter()
+	r.Mount("/debug/pprof", pprofRoutes())
+
+	// サーバー起動
+	go func() {
+		http.ListenAndServe(":6061", r)
+	}()
+
 	mux := setup()
 	slog.Info("Listening on :8080")
 	http.ListenAndServe(":8080", mux)
@@ -29,12 +38,7 @@ func main() {
 	// 	log.Println(http.ListenAndServe(":6060", nil))
 	// }()
 	// /debug/pprof 以下にpprofエンドポイントを登録
-	r := chi.NewRouter()
 
-	r.Mount("/debug/pprof", pprofRoutes())
-
-	// サーバー起動
-	http.ListenAndServe(":6061", r)
 }
 
 func pprofRoutes() http.Handler {
