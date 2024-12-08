@@ -5,9 +5,13 @@ deploy:
 		git fetch; \
 		git checkout $(BRANCH); \
 		git reset --hard origin/$(BRANCH)"
+	scp -r ./webapp/go isu14-3:/home/isucon/webapp/
 
 build:
 	ssh isu14-1 " \
+		cd /home/isucon/webapp/go; \
+		/home/isucon/local/golang/bin/go build -o isuride"
+	ssh isu14-3 " \
 		cd /home/isucon/webapp/go; \
 		/home/isucon/local/golang/bin/go build -o isuride"
 
@@ -19,6 +23,7 @@ go-deploy-dir:
 
 restart:
 	ssh isu14-1 "sudo systemctl restart isuride-go.service"
+	ssh isu14-3 "sudo systemctl restart isuride-go.service"
 
 mysql-deploy:
 	ssh isu14-2 "sudo dd of=/etc/mysql/mysql.conf.d/mysqld.cnf" < ./etc/mysql/mysql.conf.d/mysqld.cnf
@@ -32,21 +37,30 @@ mysql-restart:
 nginx-deploy:
 	ssh isu14-1 "sudo dd of=/etc/nginx/nginx.conf" < ./etc/nginx/nginx.conf
 	ssh isu14-1 "sudo dd of=/etc/nginx/sites-enabled/isuride.conf" < ./etc/nginx/sites-enabled/isuride.conf
+	ssh isu14-3 "sudo dd of=/etc/nginx/nginx.conf" < ./etc/nginx/nginx.conf
+	ssh isu14-3 "sudo dd of=/etc/nginx/sites-enabled/isuride.conf" < ./etc/nginx/sites-enabled/isuride.conf
 
 nginx-rotate:
 	ssh isu14-1 "sudo rm -f /var/log/nginx/access.log"
+	ssh isu14-3 "sudo rm -f /var/log/nginx/access.log"
 
 nginx-reload:
 	ssh isu14-1 "sudo systemctl reload nginx.service"
+	ssh isu14-3 "sudo systemctl reload nginx.service"
 
 nginx-restart:
 	ssh isu14-1 "sudo systemctl restart nginx.service"
+	ssh isu14-3 "sudo systemctl restart nginx.service"
 
 daemon-reload-2:
 	ssh isu14-2 "sudo systemctl daemon-reload"
 
+daemon-reload-3:
+	ssh isu14-3 "sudo systemctl daemon-reload"
+
 env-deploy:
 	ssh isu14-1 "sudo dd of=/home/isucon/env.sh" < ./env.sh
+	ssh isu14-3 "sudo dd of=/home/isucon/env.sh" < ./env.sh
 
 .PHONY: bench
 bench:
@@ -59,6 +73,9 @@ journalctl-1:
 
 journalctl-2:
 	ssh isu14-2 "sudo journalctl -xef"
+
+journalctl-3:
+	ssh isu14-3 "sudo journalctl -xef"
 
 nginx-log:
 	ssh isu14-1 "sudo tail -f /var/log/nginx/access.log"
