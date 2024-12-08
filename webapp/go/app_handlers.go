@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"net/http"
 	"strconv"
 	"time"
@@ -577,6 +578,7 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 		ride.ChairID.String,
 	)
 	if err != nil {
+		slog.Error("insert failed!")
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
