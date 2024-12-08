@@ -8,7 +8,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
-	_ "net/http/pprof"
 	"os"
 	"os/exec"
 	"strconv"
@@ -24,8 +23,11 @@ var db *sqlx.DB
 func main() {
 
 	r := chi.NewRouter()
-	r.Mount("/debug/pprof", pprofRoutes())
-
+	r.HandleFunc("/debug/pprof/", pprof.Index)
+	r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	r.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	r.HandleFunc("/debug/pprof/trace", pprof.Trace)
 	// サーバー起動
 	go func() {
 		http.ListenAndServe(":6061", r)
@@ -39,19 +41,6 @@ func main() {
 	// }()
 	// /debug/pprof 以下にpprofエンドポイントを登録
 
-}
-
-func pprofRoutes() http.Handler {
-	r := chi.NewRouter()
-
-	// pprofハンドラを登録
-	r.HandleFunc("/debug/pprof/", pprof.Index)
-	r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-	r.HandleFunc("/debug/pprof/profile", pprof.Profile)
-	r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-	r.HandleFunc("/debug/pprof/trace", pprof.Trace)
-
-	return r
 }
 
 func setup() http.Handler {
