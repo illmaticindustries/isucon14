@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/oklog/ulid/v2"
 )
@@ -111,58 +112,58 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
+	// 座標を挿入
 	chairLocationID := ulid.Make().String()
-	if _, err := tx.ExecContext(
-		ctx,
-		`INSERT INTO chair_locations (id, chair_id, latitude, longitude) VALUES (?, ?, ?, ?)`,
-		chairLocationID, chair.ID, req.Latitude, req.Longitude,
-	); err != nil {
+	if _, err := tx.ExecContext(ctx, `INSERT INTO chair_locations (id, chair_id, latitude, longitude) VALUES (?, ?, ?, ?)`, chairLocationID, chair.ID, req.Latitude, req.Longitude); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	location := &ChairLocation{}
-	if err := tx.GetContext(ctx, location, `SELECT * FROM chair_locations WHERE id = ?`, chairLocationID); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
+	// 直近のライドとステータスを取得
+	var ride struct {
+		ID                 string `db:"id"`
+		PickupLatitude     int    `db:"pickup_latitude"`
+		PickupLongitude    int    `db:"pickup_longitude"`
+		DestinationLatitude int   `db:"destination_latitude"`
+		DestinationLongitude int  `db:"destination_longitude"`
+		Status             string `db:"status"`
+	}
+	err = tx.GetContext(ctx, &ride, `
+		SELECT rides.id, rides.pickup_latitude, rides.pickup_longitude, rides.destination_latitude, rides.destination_longitude, rs.status
+		FROM rides
+		LEFT JOIN (
+			SELECT ride_id, status
+			FROM ride_statuses
+			ORDER BY created_at DESC
+			LIMIT 1
+		) rs ON rides.id = rs.ride_id
+		WHERE rides.chair_id = ?
+		ORDER BY rides.updated_at DESC
+		LIMIT 1`, chair.ID)
+
+	// ステータス更新処理
+	if err == nil && ride.Status != "COMPLETED" && ride.Status != "CANCELED" {
+		newStatus := ""
+		if req.Latitude == ride.PickupLatitude && req.Longitude == ride.PickupLongitude && ride.Status == "ENROUTE" {
+			newStatus = "PICKUP"
+		} else if req.Latitude == ride.DestinationLatitude && req.Longitude == ride.DestinationLongitude && ride.Status == "CARRYING" {
+			newStatus = "ARRIVED"
+		}
+		if newStatus != "" {
+			go func() {
+				_, _ = db.ExecContext(ctx, "INSERT INTO ride_statuses (id, ride_id, status) VALUES (?, ?, ?)", ulid.Make().String(), ride.ID, newStatus)
+			}()
+		}
 	}
 
-	ride := &Ride{}
-	if err := tx.GetContext(ctx, ride, `SELECT * FROM rides WHERE chair_id = ? ORDER BY updated_at DESC LIMIT 1`, chair.ID); err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-	} else {
-		status, err := getLatestRideStatus(ctx, tx, ride.ID)
-		if err != nil {
-			writeError(w, http.StatusInternalServerError, err)
-			return
-		}
-		if status != "COMPLETED" && status != "CANCELED" {
-			if req.Latitude == ride.PickupLatitude && req.Longitude == ride.PickupLongitude && status == "ENROUTE" {
-				if _, err := tx.ExecContext(ctx, "INSERT INTO ride_statuses (id, ride_id, status) VALUES (?, ?, ?)", ulid.Make().String(), ride.ID, "PICKUP"); err != nil {
-					writeError(w, http.StatusInternalServerError, err)
-					return
-				}
-			}
-
-			if req.Latitude == ride.DestinationLatitude && req.Longitude == ride.DestinationLongitude && status == "CARRYING" {
-				if _, err := tx.ExecContext(ctx, "INSERT INTO ride_statuses (id, ride_id, status) VALUES (?, ?, ?)", ulid.Make().String(), ride.ID, "ARRIVED"); err != nil {
-					writeError(w, http.StatusInternalServerError, err)
-					return
-				}
-			}
-		}
-	}
-
+	// コミット
 	if err := tx.Commit(); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
 	writeJSON(w, http.StatusOK, &chairPostCoordinateResponse{
-		RecordedAt: location.CreatedAt.UnixMilli(),
+		RecordedAt: time.Now().UnixMilli(),
 	})
 }
 
