@@ -34,7 +34,7 @@ func main() {
 	r.Mount("/debug/pprof", pprofRoutes())
 
 	// サーバー起動
-	http.ListenAndServe(":6060", r)
+	http.ListenAndServe(":6061", r)
 }
 
 func pprofRoutes() http.Handler {
