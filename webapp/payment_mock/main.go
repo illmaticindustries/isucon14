@@ -1,12 +1,13 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
 	"sync"
+
+	"github.com/goccy/go-json"
 )
 
 var (
