@@ -6,7 +6,7 @@ import (
 	"net/http"
 )
 
-// // このAPIをインスタンス内から一定間隔で叩かせることで、椅子とライドをマッチングさせる
+// このAPIをインスタンス内から一定間隔で叩かせることで、椅子とライドをマッチングさせる
 // func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 // 	ctx := r.Context()
 // 	// MEMO: 一旦最も待たせているリクエストに適当な空いている椅子マッチさせる実装とする。おそらくもっといい方法があるはず…
@@ -23,7 +23,15 @@ import (
 // 	matched := &Chair{}
 // 	empty := false
 // 	for i := 0; i < 10; i++ {
-// 		if err := db.GetContext(ctx, matched, "SELECT * FROM chairs INNER JOIN (SELECT id FROM chairs WHERE is_active = TRUE ORDER BY RAND() LIMIT 1) AS tmp ON chairs.id = tmp.id LIMIT 1"); err != nil {
+// 		if err := db.GetContext(ctx, matched, `
+// select r.chair_id
+// from ride_statuses rs
+// left join rides r
+// on rs.ride_id = r.id
+// group by r.chair_id
+// having count(*) %6 = 0
+// limit 1
+// `); err != nil {
 // 			if errors.Is(err, sql.ErrNoRows) {
 // 				w.WriteHeader(http.StatusNoContent)
 // 				return
@@ -31,7 +39,16 @@ import (
 // 			writeError(w, http.StatusInternalServerError, err)
 // 		}
 
-// 		if err := db.GetContext(ctx, &empty, "SELECT COUNT(*) = 0 FROM (SELECT COUNT(chair_sent_at) = 6 AS completed FROM ride_statuses WHERE ride_id IN (SELECT id FROM rides WHERE chair_id = ?) GROUP BY ride_id) is_completed WHERE completed = FALSE", matched.ID); err != nil {
+// 		if err := db.GetContext(ctx, &empty, `
+// 		SELECT COUNT(*) = 0
+// 		FROM (
+// 			SELECT COUNT(chair_sent_at) = 6 AS completed
+// 			FROM ride_statuses
+// 			WHERE ride_id IN (SELECT id FROM rides WHERE chair_id = ?)
+// 			GROUP BY ride_id
+// 		) is_completed
+// 		WHERE completed = FALSE
+// 		`, matched.ID); err != nil {
 // 			writeError(w, http.StatusInternalServerError, err)
 // 			return
 // 		}
@@ -76,27 +93,43 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 	// 2. 空いている椅子を取得（条件に基づく最適化されたクエリ）
 	chair := &Chair{}
 	err = db.GetContext(ctx, chair, `
-		SELECT c.id, c.name, c.model
-		FROM chairs AS c
-		LEFT JOIN (
-			SELECT chair_id
-			FROM rides AS r
-			JOIN ride_statuses AS rs ON r.id = rs.ride_id
-			WHERE rs.status != 'COMPLETED'
-			GROUP BY chair_id
-		) AS active_rides
-		ON c.id = active_rides.chair_id
-		WHERE active_rides.chair_id IS NULL AND c.is_active = TRUE
-		LIMIT 1
-	`)
+select r.chair_id
+from ride_statuses rs
+left join rides r
+on rs.ride_id = r.id
+group by r.chair_id
+having count(*) %6 = 0
+limit 1
+`)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
 		writeError(w, http.StatusInternalServerError, err)
-		return
 	}
+	// err = db.GetContext(ctx, chair, `
+	// 	SELECT c.id, c.name, c.model
+	// 	FROM chairs AS c
+	// 	LEFT JOIN (
+	// 		SELECT chair_id
+	// 		FROM rides AS r
+	// 		JOIN ride_statuses AS rs ON r.id = rs.ride_id
+	// 		WHERE rs.status != 'COMPLETED'
+	// 		GROUP BY chair_id
+	// 	) AS active_rides
+	// 	ON c.id = active_rides.chair_id
+	// 	WHERE active_rides.chair_id IS NULL AND c.is_active = TRUE
+	// 	LIMIT 1
+	// `)
+	// if err != nil {
+	// 	if errors.Is(err, sql.ErrNoRows) {
+	// 		w.WriteHeader(http.StatusNoContent)
+	// 		return
+	// 	}
+	// 	writeError(w, http.StatusInternalServerError, err)
+	// 	return
+	// }
 
 	// 3. ライドと椅子をマッチング
 	_, err = db.ExecContext(ctx, `
