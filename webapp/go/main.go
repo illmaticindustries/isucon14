@@ -2,13 +2,13 @@ package main
 
 import (
 	crand "crypto/rand"
-	_ "net/http/pprof"
 	"encoding/json"
 	"fmt"
-	"log"
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/pprof"
+	_ "net/http/pprof"
 	"os"
 	"os/exec"
 	"strconv"
@@ -25,9 +25,29 @@ func main() {
 	mux := setup()
 	slog.Info("Listening on :8080")
 	http.ListenAndServe(":8080", mux)
-	go func() {
-		log.Println(http.ListenAndServe(":6060", nil))
-	}()
+	// go func() {
+	// 	log.Println(http.ListenAndServe(":6060", nil))
+	// }()
+	// /debug/pprof 以下にpprofエンドポイントを登録
+	r := chi.NewRouter()
+
+	r.Mount("/debug/pprof", pprofRoutes())
+
+	// サーバー起動
+	http.ListenAndServe(":6060", r)
+}
+
+func pprofRoutes() http.Handler {
+	r := chi.NewRouter()
+
+	// pprofハンドラを登録
+	r.HandleFunc("/debug/pprof/", pprof.Index)
+	r.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	r.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	r.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	r.HandleFunc("/debug/pprof/trace", pprof.Trace)
+
+	return r
 }
 
 func setup() http.Handler {
