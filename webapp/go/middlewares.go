@@ -4,12 +4,12 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"log/slog"
 	"net/http"
 	"time"
 
-	"github.com/goccy/go-json"
-
 	"github.com/bradfitz/gomemcache/memcache"
+	"github.com/goccy/go-json"
 )
 
 func appAuthMiddleware(next http.Handler) http.Handler {
@@ -133,15 +133,18 @@ func cacheGetChair(accessToken string) (*Chair, bool) {
 	item, err := memcachedClient.Get(accessToken)
 	if err != nil {
 		if err == memcache.ErrCacheMiss {
+			slog.Info("cache miss")
 			return nil, false
 		}
 		// その他のエラーはログ出力（必要に応じて実装）
+		slog.Error("unexpected error %v", slog.Any("error", err))
 		return nil, false
 	}
 
 	chair := &Chair{}
 	if err := json.Unmarshal(item.Value, chair); err != nil {
 		// JSONデコードエラーの場合はキャッシュを無視
+		slog.Error("failed to unmarshal cache item", slog.Any("error", err))
 		return nil, false
 	}
 
@@ -153,6 +156,7 @@ func cacheSetChair(accessToken string, chair *Chair, duration time.Duration) {
 	data, err := json.Marshal(chair)
 	if err != nil {
 		// JSONエンコードエラーは無視
+		slog.Error("failed to marshal cache item", slog.Any("error", err), slog.Any("chair", chair))
 		return
 	}
 
