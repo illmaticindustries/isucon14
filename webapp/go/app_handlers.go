@@ -574,7 +574,7 @@ func appPostRideEvaluatation(w http.ResponseWriter, r *http.Request) {
 	_, err = tx.ExecContext(
 		ctx,
 		`INSERT INTO vacant_chairs (chair_id) VALUES (?)`,
-		ride.ChairID,
+		ride.ChairID.String,
 	)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
