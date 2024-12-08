@@ -21,7 +21,6 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	matched := ""
 	// empty := false
 	// for i := 0; i < 10; i++ {
 	// 	if err := db.GetContext(ctx, matched, "SELECT * FROM chairs INNER JOIN (SELECT id FROM chairs WHERE is_active = TRUE ORDER BY RAND() LIMIT 1) AS tmp ON chairs.id = tmp.id LIMIT 1"); err != nil {
@@ -60,12 +59,15 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	if err := tx.SelectContext(ctx, &matched, "SELECT chair_id FROM vacant_chairs LIMIT 1 FOR UPDATE"); err != nil {
+	var vacant_chair struct {
+		ID string `db:"chair_id"`
+	}
+	if err := tx.SelectContext(ctx, &vacant_chair, "SELECT chair_id FROM vacant_chairs LIMIT 1 FOR UPDATE"); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
 
-	if _, err := tx.ExecContext(ctx, "DELETE FROM vacant_chairs WHERE chair_id = ?", matched); err != nil {
+	if _, err := tx.ExecContext(ctx, "DELETE FROM vacant_chairs WHERE chair_id = ?", vacant_chair.ID); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
@@ -76,7 +78,7 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 	}
 	tx.Commit()
 
-	if _, err := db.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", matched, ride.ID); err != nil {
+	if _, err := db.ExecContext(ctx, "UPDATE rides SET chair_id = ? WHERE id = ?", vacant_chair.ID, ride.ID); err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
