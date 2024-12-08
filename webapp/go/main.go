@@ -23,7 +23,7 @@ func main() {
 	mux := setup()
 	slog.Info("Listening on :8080")
 	http.ListenAndServe(":8080", mux)
-	goo func() {
+	go func() {
 		log.Println(http.ListenAndServe(":6060", nil))
 	}
 }

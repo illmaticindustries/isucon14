@@ -9,7 +9,7 @@ deploy:
 build:
 	ssh isu14-1 " \
 		cd /home/isucon/webapp/go; \
-		/home/isucon/local/go/bin/go build -o isupipe"
+		/home/isucon/local/golang/bin/go build -o isuride"
 
 go-deploy:
 	scp ./webapp/go/isupipe isu14-1:/home/isucon/webapp/go/
