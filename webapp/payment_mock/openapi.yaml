@@ -3,7 +3,8 @@ info:
   version: "1.0"
   title: isu payment gateway
 servers:
-  - url: "http://localhost:12345/"
+  #- url: "http://localhost:12345/"
+  - url: "http://192.168.0.13:12345/"
     description: api
 paths:
   /payments:
