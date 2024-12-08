@@ -79,7 +79,7 @@ pprof:
 pprof-show:
 	$(eval latest := $(shell ssh isu14-1 "ls -rt ~/pprof/ | tail -n 1"))
 	scp isu14-1:~/pprof/$(latest) ./pprof
-	go tool pprof -http=":1080" ./pprof/$(latest)
+	go tool pprof -http=":1080" ./pprof
 
 pprof-kill:
 	ssh isu14-1 "pgrep -f 'pprof' | xargs kill;"
