@@ -2,7 +2,6 @@ package main
 
 import (
 	crand "crypto/rand"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net"
@@ -12,6 +11,10 @@ import (
 	"os/exec"
 	"strconv"
 
+	"github.com/goccy/go-json"
+
+	"github.com/bradfitz/gomemcache/memcache"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-sql-driver/mysql"
@@ -19,8 +22,10 @@ import (
 )
 
 var db *sqlx.DB
+var memcachedClient *memcache.Client
 
 func main() {
+	memcachedClient = memcache.New("127.0.0.1:11211") // Memcachedサーバーのアドレス
 
 	r := chi.NewRouter()
 	r.HandleFunc("/debug/pprof/", pprof.Index)
