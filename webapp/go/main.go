@@ -2,6 +2,7 @@ package main
 
 import (
 	crand "crypto/rand"
+	_ "net/http/pprof"
 	"encoding/json"
 	"fmt"
 	"log"
