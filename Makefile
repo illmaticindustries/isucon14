@@ -61,10 +61,11 @@ pt-query-digest:
 	ssh isu14-1 "sudo pt-query-digest --limit 10 /var/log/mysql/mysql-slow.log"
 
 ALPSORT=sum
+# ^/api/app/nearby-chairs\?
 # ^/api/app/rides/[0-9A-Za-z]+/evaluation
-# ^/api/app/nearby-chairs\?distance=[0-9]+&latitude=-?[0-9]+&longitude=-?[0-9]+
 # ^/api/chair/rides/[0-9A-Za-z]+/status
-ALPM=^/api/chair/rides/[0-9A-Za-z]+/status,^/api/app/rides/[0-9A-Za-z]+/evaluation,^/api/app/nearby-chairs\?
+# ^/api/owner/sales\?
+ALPM=^/api/chair/rides/[0-9A-Za-z]+/status,^/api/app/rides/[0-9A-Za-z]+/evaluation,^/api/app/nearby-chairs\?,^/api/owner/sales\?
 OUTFORMAT=count,method,uri,min,max,sum,avg,p99
 
 alp:
