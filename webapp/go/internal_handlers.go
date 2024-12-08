@@ -60,7 +60,7 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 	}
 	defer tx.Rollback()
 
-	if err := tx.SelectContext(ctx, matched, "SELECT chair_id FROM vacant_chairs LIMIT 1 FOR UPDATE"); err != nil {
+	if err := tx.SelectContext(ctx, &matched, "SELECT chair_id FROM vacant_chairs LIMIT 1 FOR UPDATE"); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		return
 	}
