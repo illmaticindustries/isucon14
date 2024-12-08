@@ -94,6 +94,68 @@ type chairPostCoordinateResponse struct {
 	RecordedAt int64 `json:"recorded_at"`
 }
 
+/*
+	func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		req := &Coordinate{}
+		if err := bindJSON(r, req); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+
+		chair := ctx.Value("chair").(*Chair)
+
+		chairLocationID := ulid.Make().String()
+		if _, err := db.ExecContext(
+			ctx,
+			`INSERT INTO chair_locations (id, chair_id, latitude, longitude) VALUES (?, ?, ?, ?)`,
+			chairLocationID, chair.ID, req.Latitude, req.Longitude,
+		); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		location := &ChairLocation{}
+		if err := db.GetContext(ctx, location, `SELECT * FROM chair_locations WHERE id = ?`, chairLocationID); err != nil {
+			writeError(w, http.StatusInternalServerError, err)
+			return
+		}
+
+		ride := &Ride{}
+		if err := db.GetContext(ctx, ride, `SELECT * FROM rides WHERE chair_id = ? ORDER BY updated_at DESC LIMIT 1`, chair.ID); err != nil {
+			if !errors.Is(err, sql.ErrNoRows) {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
+		} else {
+			status, err := getLatestRideStatus(ctx, db, ride.ID)
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, err)
+				return
+			}
+			if status != "COMPLETED" && status != "CANCELED" {
+				if req.Latitude == ride.PickupLatitude && req.Longitude == ride.PickupLongitude && status == "ENROUTE" {
+					if _, err := db.ExecContext(ctx, "INSERT INTO ride_statuses (id, ride_id, status) VALUES (?, ?, ?)", ulid.Make().String(), ride.ID, "PICKUP"); err != nil {
+						writeError(w, http.StatusInternalServerError, err)
+						return
+					}
+				}
+
+				if req.Latitude == ride.DestinationLatitude && req.Longitude == ride.DestinationLongitude && status == "CARRYING" {
+					if _, err := db.ExecContext(ctx, "INSERT INTO ride_statuses (id, ride_id, status) VALUES (?, ?, ?)", ulid.Make().String(), ride.ID, "ARRIVED"); err != nil {
+						writeError(w, http.StatusInternalServerError, err)
+						return
+					}
+				}
+			}
+		}
+
+		writeJSON(w, http.StatusOK, &chairPostCoordinateResponse{
+			RecordedAt: location.CreatedAt.UnixMilli(),
+		})
+	}
+*/
+
 func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	req := &Coordinate{}
@@ -104,51 +166,89 @@ func chairPostCoordinate(w http.ResponseWriter, r *http.Request) {
 
 	chair := ctx.Value("chair").(*Chair)
 
+	// chair_locations への挿入
 	chairLocationID := ulid.Make().String()
-	if _, err := db.ExecContext(
+	_, err := db.ExecContext(
 		ctx,
 		`INSERT INTO chair_locations (id, chair_id, latitude, longitude) VALUES (?, ?, ?, ?)`,
 		chairLocationID, chair.ID, req.Latitude, req.Longitude,
-	); err != nil {
+	)
+	if err != nil {
 		writeError(w, http.StatusInternalServerError, err)
 		return
 	}
 
-	location := &ChairLocation{}
-	if err := db.GetContext(ctx, location, `SELECT * FROM chair_locations WHERE id = ?`, chairLocationID); err != nil {
-		writeError(w, http.StatusInternalServerError, err)
-		return
-	}
-
-	ride := &Ride{}
-	if err := db.GetContext(ctx, ride, `SELECT * FROM rides WHERE chair_id = ? ORDER BY updated_at DESC LIMIT 1`, chair.ID); err != nil {
-		if !errors.Is(err, sql.ErrNoRows) {
-			writeError(w, http.StatusInternalServerError, err)
+	// 最新の location データを取得
+	locationChan := make(chan *ChairLocation)
+	errorChan := make(chan error)
+	go func() {
+		location := &ChairLocation{}
+		err := db.GetContext(ctx, location, `SELECT * FROM chair_locations WHERE id = ?`, chairLocationID)
+		if err != nil {
+			errorChan <- err
 			return
 		}
-	} else {
+		locationChan <- location
+	}()
+
+	// 最新の ride データを取得
+	rideChan := make(chan *Ride)
+	go func() {
+		ride := &Ride{}
+		err := db.GetContext(ctx, ride, `SELECT * FROM rides WHERE chair_id = ? ORDER BY updated_at DESC LIMIT 1`, chair.ID)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			errorChan <- err
+			return
+		}
+		rideChan <- ride
+	}()
+
+	// location と ride の並列処理結果を受け取る
+	var location *ChairLocation
+	var ride *Ride
+	select {
+	case location = <-locationChan:
+	case err = <-errorChan:
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	select {
+	case ride = <-rideChan:
+	case err = <-errorChan:
+		writeError(w, http.StatusInternalServerError, err)
+		return
+	}
+
+	// ride のステータス処理
+	if ride != nil {
 		status, err := getLatestRideStatus(ctx, db, ride.ID)
 		if err != nil {
 			writeError(w, http.StatusInternalServerError, err)
 			return
 		}
-		if status != "COMPLETED" && status != "CANCELED" {
-			if req.Latitude == ride.PickupLatitude && req.Longitude == ride.PickupLongitude && status == "ENROUTE" {
-				if _, err := db.ExecContext(ctx, "INSERT INTO ride_statuses (id, ride_id, status) VALUES (?, ?, ?)", ulid.Make().String(), ride.ID, "PICKUP"); err != nil {
-					writeError(w, http.StatusInternalServerError, err)
-					return
-				}
-			}
 
-			if req.Latitude == ride.DestinationLatitude && req.Longitude == ride.DestinationLongitude && status == "CARRYING" {
-				if _, err := db.ExecContext(ctx, "INSERT INTO ride_statuses (id, ride_id, status) VALUES (?, ?, ?)", ulid.Make().String(), ride.ID, "ARRIVED"); err != nil {
-					writeError(w, http.StatusInternalServerError, err)
-					return
+		// ステータス判定
+		switch {
+		case req.Latitude == ride.PickupLatitude && req.Longitude == ride.PickupLongitude && status == "ENROUTE":
+			go func() {
+				_, err := db.ExecContext(ctx, "INSERT INTO ride_statuses (id, ride_id, status) VALUES (?, ?, ?)", ulid.Make().String(), ride.ID, "PICKUP")
+				if err != nil {
+					// 非同期エラーはログに記録
+					fmt.Printf("Error inserting PICKUP status: %v\n", err)
 				}
-			}
+			}()
+		case req.Latitude == ride.DestinationLatitude && req.Longitude == ride.DestinationLongitude && status == "CARRYING":
+			go func() {
+				_, err := db.ExecContext(ctx, "INSERT INTO ride_statuses (id, ride_id, status) VALUES (?, ?, ?)", ulid.Make().String(), ride.ID, "ARRIVED")
+				if err != nil {
+					fmt.Printf("Error inserting ARRIVED status: %v\n", err)
+				}
+			}()
 		}
 	}
 
+	// レスポンス送信
 	writeJSON(w, http.StatusOK, &chairPostCoordinateResponse{
 		RecordedAt: location.CreatedAt.UnixMilli(),
 	})
