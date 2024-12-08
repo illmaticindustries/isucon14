@@ -84,6 +84,7 @@ func internalGetMatching(w http.ResponseWriter, r *http.Request) {
 			JOIN ride_statuses AS rs ON r.id = rs.ride_id
 			WHERE rs.chair_sent_at IS NULL
 			GROUP BY r.chair_id
+		    HAVING COUNT(rs.chair_sent_at) = 6
 		) AS active_rides
 		ON c.id = active_rides.chair_id
 		WHERE active_rides.chair_id IS NULL AND c.is_active = TRUE
